@@ -547,11 +547,82 @@
             if (!wavesurfer) { initWaveform(); }
 
             var url = URL.createObjectURL(file);
-            wavesurfer.load(url);
+
+            if (looksLikeMp3(file) && window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
+                file.arrayBuffer().then(function (arrayBuffer) {
+                    if (looksLikeVbrMp3(new Uint8Array(arrayBuffer))) {
+                        loadMp3WithMse(arrayBuffer, url);
+                    } else {
+                        wavesurfer.load(url);
+                    }
+                }).catch(function (err) {
+                    console.warn('File read failed, falling back to direct URL', err);
+                    wavesurfer.load(url);
+                });
+            } else {
+                wavesurfer.load(url);
+            }
 
             dom.audioInfo.textContent = file.name;
             dom.clearAudio.style.display = '';
             setStatus('loaded', 'dim');
+        }
+
+        function looksLikeMp3(file) {
+            var mime = (file.type || '').toLowerCase();
+            var name = (file.name || '').toLowerCase();
+
+            return (
+                mime === 'audio/mpeg' ||
+                mime === 'audio/mp3' || // nonstandard but sometimes encountered
+                name.endsWith('.mp3')
+            );
+        }
+
+        function looksLikeVbrMp3(bytes) {
+            var offset = 0;
+            var len = bytes.length;
+
+            // Skip ID3v2 header if present
+            if (len > 10 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+                offset = 10 + ((bytes[6] & 0x7F) << 21 | (bytes[7] & 0x7F) << 14 | (bytes[8] & 0x7F) << 7 | (bytes[9] & 0x7F));
+            }
+
+            while (offset + 4 < len) {
+                if (bytes[offset] === 0xFF && (bytes[offset + 1] & 0xE0) === 0xE0) {
+                    var channelMode = (bytes[offset + 3] >> 6) & 3;
+                    var tagOffset = offset + 4 + (channelMode === 3 ? 17 : 32);
+                    if (tagOffset + 4 <= len) {
+                        var tag = String.fromCharCode(bytes[tagOffset], bytes[tagOffset + 1], bytes[tagOffset + 2], bytes[tagOffset + 3]);
+                        return tag === 'Xing' || tag === 'VBRI';
+                    }
+                    return false;
+                }
+                offset++;
+            }
+            return false;
+        }
+
+        function loadMp3WithMse(arrayBuffer, fallbackUrl) {
+            var mediaSource = new MediaSource();
+            // Load without the waveform. We could calculate peaks by parsing
+            // frames, but that's extra complexity.
+            wavesurfer.load(URL.createObjectURL(mediaSource), [[0, 0]]);
+
+            mediaSource.addEventListener('sourceopen', function () {
+                try {
+                    var sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+                    sourceBuffer.addEventListener('updateend', function () {
+                        if (!sourceBuffer.updating && mediaSource.readyState === 'open') {
+                            try { mediaSource.endOfStream(); } catch (err) {}
+                        }
+                    });
+                    sourceBuffer.appendBuffer(arrayBuffer);
+                } catch (err) {
+                    console.warn('MSE append failed, falling back to direct URL', err);
+                    wavesurfer.load(fallbackUrl);
+                }
+            }, { once: true });
         }
 
         function handleSRTChange(e) {
