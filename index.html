@@ -164,7 +164,7 @@
         .subtitle-item.active { font-weight: 700; }
         .subtitle-time { color: #999; font-size: 0.85rem; }
 
-        #copy-btn {
+        #copy-btn, #sync-btn {
             margin-top: 0.5rem;
             font-family: inherit;
             font-size: 0.85rem;
@@ -173,8 +173,9 @@
             cursor: pointer;
             color: #999;
             padding: 0;
+            margin-right: 0.75rem;
         }
-        #copy-btn:hover { color: #000; }
+        #copy-btn:hover, #sync-btn:hover { color: #000; }
 
         .clear-btn {
             font-family: inherit;
@@ -249,6 +250,7 @@
         <h2>[subtitles]</h2>
         <div id="subtitle-text" class="dim">—</div>
         <hr>
+        <button id="sync-btn">sync</button>
         <div class="subtitle-list" id="subtitle-list"></div>
         <button id="copy-btn">copy all</button>
 
@@ -291,6 +293,7 @@
                 playBtn: document.getElementById('play-btn'),
                 stopBtn: document.getElementById('stop-btn'),
                 resetBtn: document.getElementById('reset-btn'),
+                syncBtn: document.getElementById('sync-btn'),
                 copyBtn: document.getElementById('copy-btn'),
                 clearAudio: document.getElementById('clear-audio'),
                 clearSRT: document.getElementById('clear-srt'),
@@ -491,6 +494,35 @@
 
             wavesurfer.seekTo(time / duration);
             wavesurfer.play();
+        }
+
+        function handleSyncSubtitles() {
+            if (!guardWaveSurfer()) { return; }
+            var currentTime = wavesurfer.getCurrentTime();
+            updateCurrentSubtitle(currentTime);
+
+            var activeItem = dom.subtitleList.querySelector('.subtitle-item.active');
+            if (activeItem) {
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            for (var i = 0; i < state.subtitles.length; i++) {
+                if (state.subtitles[i].start >= currentTime) {
+                    var nextItem = dom.subtitleList.querySelector('.subtitle-item[data-index="' + i + '"]');
+                    if (nextItem) {
+                        nextItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+            }
+
+            if (state.subtitles.length > 0) {
+                var lastItem = dom.subtitleList.querySelector('.subtitle-item[data-index="' + (state.subtitles.length - 1) + '"]');
+                if (lastItem) {
+                    lastItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
         }
 
         function copyAllSubtitles() {
@@ -718,6 +750,7 @@
             dom.playBtn.addEventListener('click', handlePlay);
             dom.stopBtn.addEventListener('click', handleStop);
             dom.resetBtn.addEventListener('click', resetPlayer);
+            dom.syncBtn.addEventListener('click', handleSyncSubtitles);
             dom.copyBtn.addEventListener('click', copyAllSubtitles);
             dom.clearAudio.addEventListener('click', clearAudioInput);
             dom.clearSRT.addEventListener('click', clearSRTInput);
