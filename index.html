@@ -659,6 +659,16 @@
             setStatus('stopped', 'dim');
         }
 
+        function handleJumpBackward(seconds) {
+            if (!guardWaveSurfer()) { return; }
+            wavesurfer.skip(-(seconds));
+        }
+
+        function handleJumpForward(seconds) {
+            if (!guardWaveSurfer()) { return; }
+            wavesurfer.skip(seconds);
+        }
+
         function handleSpeedChange(rate) {
             if (!guardWaveSurfer()) { return; }
             wavesurfer.setPlaybackRate(rate);
@@ -729,6 +739,27 @@
 
             document.addEventListener('click', function () {
                 toggleSpeedMenu(false);
+            });
+
+            document.addEventListener('keydown', function (e) {
+                var tag = (e.target && e.target.tagName) || '';
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) {
+                    return;
+                }
+
+                // Play/pause
+                if (e.code === 'Space' || e.key === ' ' || e.key === 'MediaPlayPause') {
+                    e.preventDefault();
+                    handlePlay();
+
+                // Jump 5 seconds
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    handleJumpBackward(5);
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    handleJumpForward(5);
+                }
             });
 
             setupWaveformHover();
